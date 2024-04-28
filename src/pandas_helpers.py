@@ -1,12 +1,15 @@
+"""This module contains functions to transform excel files using pandas"""
+
 from typing import List, Tuple
 
 import pandas as pd
+
 
 def load_and_transform_sheets(
     file_path: str,
     sheets_list: list,
     header_from_row: int = 0
-)  -> List[pd.DataFrame]:
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Loads and transforms multiple sheets from an Excel file
 
@@ -26,32 +29,34 @@ def load_and_transform_sheets(
 
     df_list = []
     for sheet in sheets_list:
-        df = pd.read_excel(file_path , sheet_name=sheet, header=header_from_row)
+        df = pd.read_excel(file_path, sheet_name=sheet, header=header_from_row)
 
-        # Set up custom headers: first three from row 1, and 'Products' for the fourth.
+        # Set up custom headers: first three from row 1, and 'Products' for the
+        # fourth.
         header_row = df.iloc[0, :3].tolist() + ['Products']
         df.columns = header_row + df.columns[4:].tolist()
 
         # Drop unnecessary rows
-        df = df.drop([0, len(df)-1])
+        df = df.drop([0, len(df) - 1])
 
         # Clean the 'Products' column
         df['Products'] = df['Products'].apply(clean_product_column)
-
 
         # Unpivot Date Related Columns
         id_vars_columns = ['Province', 'U_R', 'COICOP', 'Products', 'Weights']
 
         melted_df = pd.melt(df,
-                          id_vars=id_vars_columns,
-                          var_name='Date',
-                          value_name='Index')
+                            id_vars=id_vars_columns,
+                            var_name='Date',
+                            value_name='Index')
 
         melted_df['Date'] = pd.to_datetime(melted_df['Date']).dt.date
 
         df_list.append(melted_df)
 
-    return df_list
+    return (df_list[0], df_list[1], df_list[2])
+
+# pylint: disable=C0116
 
 
 def clean_product_column(product_name: str) -> str:
@@ -60,9 +65,11 @@ def clean_product_column(product_name: str) -> str:
     return cleaned_name
 
 
-def concat_data_frames(data_frames: List[Tuple[pd.DataFrame, str]]) -> pd.DataFrame:
+def concat_data_frames(
+        data_frames: List[Tuple[pd.DataFrame, str]]) -> pd.DataFrame:
     """
-    Concate multiple DataFrames into a single DF, adding a 'Source' column to differentiate data sources.
+    Concate multiple DataFrames into a single DF,
+    adding a 'Source' column to differentiate data sources.
 
     Args:
         data_frames (List[pd.DataFrame]): The list of DataFrames to combine.
@@ -73,17 +80,17 @@ def concat_data_frames(data_frames: List[Tuple[pd.DataFrame, str]]) -> pd.DataFr
     Raises:
         ValueError: If an empty list of dataFrames is provided.
     """
-   
-    if not len(data_frames):
+
+    if not data_frames:
         raise ValueError('Provide Data Frames to Concat')
-    
+
     df_to_concat = []
 
     for [df, source] in data_frames:
         df['Source'] = source
         df_to_concat.append(df)
-    
+
     # Concatenate all DataFrames into one
     combined_df = pd.concat(df_to_concat, ignore_index=True)
-    
+
     return combined_df
